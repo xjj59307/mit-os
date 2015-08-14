@@ -61,34 +61,82 @@ void runcmd(struct cmd *cmd) {
   if(cmd == 0)
     exit(0);
   
-  switch(cmd->type){
-  default:
-    fprintf(stderr, "unknown runcmd\n");
-    exit(-1);
+  switch(cmd->type) {
+    case ' ':
+      ecmd = (struct execcmd*)cmd;
+      if(ecmd->argv[0] == 0)
+        exit(0);
+      
+      execvp(ecmd->argv[0], ecmd->argv);
+      perror("execvp");
 
-  case ' ':
-    ecmd = (struct execcmd*)cmd;
-    
-    if(ecmd->argv[0] == 0)
-      exit(0);
-    
-    if (execute(ecmd) == -1) {
-      fprintf(stderr, "%s not implemented\n", ecmd->argv[0]);
-    }
+      break;
 
-    break;
+    case '>':
+    case '<':
+      rcmd = (struct redircmd*)cmd;
+      fprintf(stderr, "redir not implemented\n");
+      // Your code here ...
+      runcmd(rcmd->cmd);
+      break;
 
-  case '>':
-  case '<':
-    rcmd = (struct redircmd*)cmd;
-    fprintf(stderr, "redir not implemented\n");
-    // Your code here ...
-    runcmd(rcmd->cmd);
-    break;
+    case '|':
+      pcmd = (struct pipecmd*)cmd;
 
-  case '|':
-    pcmd = (struct pipecmd*)cmd;
-    break;
+      int pfd[2];
+
+      if (pipe(pfd) == -1)
+        perror("pipe");
+
+      pid_t pid = fork1();
+      if (pid == 0) {
+        if (close(pfd[0]) == -1)
+          perror("close");
+
+        if (pfd[1] != STDOUT_FILENO) {
+          if (dup2(pfd[1], STDOUT_FILENO) == -1)
+            perror("dup2");
+          if (close(pfd[1]) == -1)
+            perror("close");
+        }
+
+        runcmd(pcmd->left);
+      } else if (pid == -1) {
+        perror("fork1");
+      }
+
+      pid = fork1();
+      if (pid == 0) {
+        if (close(pfd[1]) == -1)
+          perror("close");
+
+        if (pfd[0] != STDIN_FILENO) {
+          if (dup2(pfd[0], STDIN_FILENO) == -1)
+            perror("dup2");
+          if (close(pfd[0]) == -1)
+            perror("close");
+        }
+
+        runcmd(pcmd->right);
+      } else if (pid == -1) {
+        perror("fork1");
+      }
+
+      if (close(pfd[0]) == -1)
+        perror("close");
+      if (close(pfd[1]) == -1)
+        perror("close");
+
+      if (wait(NULL) == -1)
+        perror("wait");
+      if (wait(NULL) == -1)
+        perror("wait");
+
+      break;
+
+    default:
+      fprintf(stderr, "unknown runcmd\n");
+      exit(-1);
   }    
 
   exit(0);
