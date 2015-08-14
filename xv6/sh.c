@@ -39,10 +39,20 @@ struct pipecmd {
 int fork1(void);  // Fork but exits on failure.
 struct cmd *parsecmd(char*);
 
+int execute(struct execcmd* cmd) {
+  if (!strcmp(cmd->argv[0], "pwd")) {
+    char cwd[1024];
+    getcwd(cwd, sizeof(cwd));
+    fprintf(stdout, "%s\n", cwd);
+  } else {
+    return -1;
+  }
+
+  return 0;
+}
+
 // Execute cmd.  Never returns.
-void
-runcmd(struct cmd *cmd)
-{
+void runcmd(struct cmd *cmd) {
   int p[2], r;
   struct execcmd *ecmd;
   struct pipecmd *pcmd;
@@ -58,10 +68,14 @@ runcmd(struct cmd *cmd)
 
   case ' ':
     ecmd = (struct execcmd*)cmd;
+    
     if(ecmd->argv[0] == 0)
       exit(0);
-    fprintf(stderr, "exec not implemented\n");
-    // Your code here ...
+    
+    if (execute(ecmd) == -1) {
+      fprintf(stderr, "%s not implemented\n", ecmd->argv[0]);
+    }
+
     break;
 
   case '>':
@@ -74,63 +88,59 @@ runcmd(struct cmd *cmd)
 
   case '|':
     pcmd = (struct pipecmd*)cmd;
-    fprintf(stderr, "pipe not implemented\n");
-    // Your code here ...
     break;
   }    
+
   exit(0);
 }
 
-int
-getcmd(char *buf, int nbuf)
-{
-  
-  if (isatty(fileno(stdin)))
+int getcmd(char *buf, int nbuf) {
+  if (isatty(STDIN_FILENO))
     fprintf(stdout, "$ ");
+
   memset(buf, 0, nbuf);
   fgets(buf, nbuf, stdin);
+
   if(buf[0] == 0) // EOF
     return -1;
+
   return 0;
 }
 
-int
-main(void)
-{
+int main(void) {
   static char buf[100];
   int fd, r;
 
   // Read and run input commands.
-  while(getcmd(buf, sizeof(buf)) >= 0){
+  while (getcmd(buf, sizeof(buf)) >= 0) {
     if(buf[0] == 'c' && buf[1] == 'd' && buf[2] == ' '){
       // Clumsy but will have to do for now.
       // Chdir has no effect on the parent if run in the child.
       buf[strlen(buf)-1] = 0;  // chop \n
+
       if(chdir(buf+3) < 0)
         fprintf(stderr, "cannot cd %s\n", buf+3);
       continue;
     }
+
     if(fork1() == 0)
       runcmd(parsecmd(buf));
+
     wait(&r);
   }
   exit(0);
 }
 
-int
-fork1(void)
-{
-  int pid;
-  
-  pid = fork();
+int fork1(void) {
+  int pid = fork();
+
   if(pid == -1)
     perror("fork");
+
   return pid;
 }
 
-struct cmd*
-execcmd(void)
-{
+struct cmd* execcmd(void) {
   struct execcmd *cmd;
 
   cmd = malloc(sizeof(*cmd));
@@ -139,9 +149,7 @@ execcmd(void)
   return (struct cmd*)cmd;
 }
 
-struct cmd*
-redircmd(struct cmd *subcmd, char *file, int type)
-{
+struct cmd* redircmd(struct cmd *subcmd, char *file, int type) {
   struct redircmd *cmd;
 
   cmd = malloc(sizeof(*cmd));
@@ -154,9 +162,7 @@ redircmd(struct cmd *subcmd, char *file, int type)
   return (struct cmd*)cmd;
 }
 
-struct cmd*
-pipecmd(struct cmd *left, struct cmd *right)
-{
+struct cmd* pipecmd(struct cmd *left, struct cmd *right) {
   struct pipecmd *cmd;
 
   cmd = malloc(sizeof(*cmd));
@@ -172,9 +178,7 @@ pipecmd(struct cmd *left, struct cmd *right)
 char whitespace[] = " \t\r\n\v";
 char symbols[] = "<|>";
 
-int
-gettoken(char **ps, char *es, char **q, char **eq)
-{
+int gettoken(char **ps, char *es, char **q, char **eq) {
   char *s;
   int ret;
   
@@ -209,9 +213,7 @@ gettoken(char **ps, char *es, char **q, char **eq)
   return ret;
 }
 
-int
-peek(char **ps, char *es, char *toks)
-{
+int peek(char **ps, char *es, char *toks) {
   char *s;
   
   s = *ps;
@@ -227,9 +229,7 @@ struct cmd *parseexec(char**, char*);
 
 // make a copy of the characters in the input buffer, starting from s through es.
 // null-terminate the copy to make it a string.
-char 
-*mkcopy(char *s, char *es)
-{
+char *mkcopy(char *s, char *es) {
   int n = es - s;
   char *c = malloc(n+1);
   assert(c);
@@ -238,9 +238,7 @@ char
   return c;
 }
 
-struct cmd*
-parsecmd(char *s)
-{
+struct cmd* parsecmd(char *s) {
   char *es;
   struct cmd *cmd;
 
@@ -254,17 +252,13 @@ parsecmd(char *s)
   return cmd;
 }
 
-struct cmd*
-parseline(char **ps, char *es)
-{
+struct cmd* parseline(char **ps, char *es) {
   struct cmd *cmd;
   cmd = parsepipe(ps, es);
   return cmd;
 }
 
-struct cmd*
-parsepipe(char **ps, char *es)
-{
+struct cmd* parsepipe(char **ps, char *es) {
   struct cmd *cmd;
 
   cmd = parseexec(ps, es);
@@ -275,9 +269,7 @@ parsepipe(char **ps, char *es)
   return cmd;
 }
 
-struct cmd*
-parseredirs(struct cmd *cmd, char **ps, char *es)
-{
+struct cmd* parseredirs(struct cmd *cmd, char **ps, char *es) {
   int tok;
   char *q, *eq;
 
@@ -299,9 +291,7 @@ parseredirs(struct cmd *cmd, char **ps, char *es)
   return cmd;
 }
 
-struct cmd*
-parseexec(char **ps, char *es)
-{
+struct cmd* parseexec(char **ps, char *es) {
   char *q, *eq;
   int tok, argc;
   struct execcmd *cmd;
