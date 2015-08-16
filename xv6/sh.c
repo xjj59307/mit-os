@@ -73,11 +73,27 @@ void runcmd(struct cmd *cmd) {
       break;
 
     case '>':
+      rcmd = (struct redircmd*)cmd;
+      int target_fd = open(rcmd->file, rcmd->mode);
+
+      if (dup2(target_fd, STDOUT_FILENO) == -1)
+        perror("dup2");
+      if (close(target_fd) == -1)
+        perror("close");
+      runcmd(rcmd->cmd);
+
+      break;
+
     case '<':
       rcmd = (struct redircmd*)cmd;
-      fprintf(stderr, "redir not implemented\n");
-      // Your code here ...
+      int source_fd = open(rcmd->file, rcmd->mode);
+
+      if (dup2(source_fd, STDIN_FILENO) == -1)
+        perror("dup2");
+      if (close(source_fd) == -1)
+        perror("close");
       runcmd(rcmd->cmd);
+
       break;
 
     case '|':
@@ -101,9 +117,7 @@ void runcmd(struct cmd *cmd) {
         }
 
         runcmd(pcmd->left);
-      } else if (pid == -1) {
-        perror("fork1");
-      }
+      } 
 
       pid = fork1();
       if (pid == 0) {
@@ -118,9 +132,7 @@ void runcmd(struct cmd *cmd) {
         }
 
         runcmd(pcmd->right);
-      } else if (pid == -1) {
-        perror("fork1");
-      }
+      } 
 
       if (close(pfd[0]) == -1)
         perror("close");
